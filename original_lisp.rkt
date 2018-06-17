@@ -128,8 +128,11 @@
   (eval (cons f (appq args)) '()))
 
 (define (eval e a)
-  (display e)
-  (display "\n")
+  ;(display "\n exp = ")
+  ;(display e)
+  ;(display "\n env = ")
+  ;(display a)
+  ;(display "\n")
   (cond [(atom e) (assoc e a)]
         [(atom (car e))
          (cond [(eq (car e) 'QUOTE)                    (cadr e)]
@@ -141,7 +144,7 @@
                                                              (eval (caddr e) a))]
                [(eq (car e) 'CAR)                      (car (eval (cadr e) a))]
                [(eq (car e) 'CDR)                      (cdr (eval (cadr e) a))]
-               [else ; this is for recursive function call
+               [else ; this is for (recursive) function call
                      ; the expression is the recursive part inside the fbody
                      ; the form is like
                      ; (fname fargs ((args init-value) (fname fbody)))
@@ -181,7 +184,15 @@
                                                              (append (pair (cadar e)
                                                                            (evlis (cdr e) a))
                                                                      a))]
-        [else (raise 'failed #t)]))
+        [(eq (caar e) 'λ)                              (eval (caddar e)
+                                                             (append (pair (cadar e)
+                                                                           (evlis (cdr e) a))
+                                                                     a))]
+        [else (raise 'failed #t)]
+        #;[else (eval (cons (eval (car e) a)
+                          (cdr e))
+                    a)]
+))
 
 ;(eval 'x `((x ,1)))
 ;(eval `(QUOTE ,#t) `())
@@ -295,40 +306,71 @@
 ;  => 
 ;(eval (list (eval '((LAMBDA (x) (QUOTE (LAMBDA (z) x))) (QUOTE _)) '()) '(QUOTE _)) '((x #t)))
 
-;(eval (list                    '(QUOTE (LAMBDA (z) x))                  '(QUOTE _)) '((x #t)))
+;######################
+; part 7 - lambda term?
+;######################
 
-;(eval                          '(QUOTE (LAMBDA (z) x))                              '((x #t)))
+; (\x -> ((\y -> cons x y) "right")) "left"
+#;(eval '((λ (x)
+          ((λ (y)
+             (CONS x y))
+           (QUOTE right)))
+        (QUOTE left))
+      '())
 
-#;(apply `(LABEL maplist
-               (LAMBDA (x)
-                       (COND
-                        ((ATOM x) x)
-                        ((QUOTE ,#t) (CONS (CAR (CAR x))
-                                           (maplist (CDR x)))))))
-       '(((ka vb) (kb vb))))
+; incorrect
+; ((\x -> (\y -> cons x y)) "left") "right"
+#;(eval '(((λ (x)
+          (λ (y)
+            (CONS x y)))
+         (QUOTE left))
+        (QUOTE right))
+      '())
 
-#;(eval `((LABEL maplist
-               (LAMBDA (x)
-                       (COND
-                        ((ATOM x) x)
-                        ((QUOTE ,#t) (CONS (CAR (CAR x))
-                                           (maplist (CDR x)))))))
-        (QUOTE ((ka va) (kb vb))))
+; incorrect
+; ((\x -> (\y -> cons x y)) "left")
+#;(eval '((λ (x)
+          (λ (y)
+            (CONS x y)))
+        (QUOTE left))
+      '())
+
+; (\f -> "42") id
+#;(eval '((λ (f)
+          (QUOTE 42))
+        (QUOTE id))
       '())
 
 
-; (\x -> (\z -> x)) "_" =\=>
-#;(eval '((LAMBDA (x)
-                (QUOTE (LAMBDA (z) x))
-                ) (QUOTE _)) '())
-
-#;(eval `((LAMBDA (x)
-               ((LABEL maplist
-                       (LAMBDA (x)
-                               (COND
-                                ((ATOM x) x)
-                                ((QUOTE ,#t) (CONS (CAR (CAR x))
-                                                   (maplist (CDR x)))))))
-                (QUOTE ((ka va) (kb vb)))))
-        (QUOTE _))
+; incorrect
+; (\f -> "42") (\x -> x)
+#;(eval '((λ (f)
+          (QUOTE 42))
+        (λ (x) x))
       '())
+
+; (\f -> "42") "(\x -> x)"
+#;(eval '((λ (f)
+          (f (QUOTE 42)))
+          (QUOTE (λ (x) x)))
+      '())
+
+; incorrect
+; (\f -> f "42") ((\x -> (\y -> cons x y)) "hello")
+#;(eval '((λ (f)
+          (f (QUOTE 42)))
+        ((λ (x)
+          (λ (y)
+            (CONS x y)))
+         (QUOTE hello)))
+      '())
+
+
+; (\f -> f "42") ((\x -> "(\y -> cons x y)") "hello")
+#;(eval '((λ (f)
+          (f (QUOTE 42)))
+        ((λ (x)
+           (QUOTE (λ (y)
+                    (CONS x y))))
+         (QUOTE hello)))
+      '((x (QUOTE fix-x))))
